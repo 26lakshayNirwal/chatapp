@@ -76,24 +76,22 @@ const logout = async (req, res) => {
 const searchUser = async (req, res, next) => {
   try {
     const { name = "" } = req.query;
-    const myId = req.user;
+    
+    const myChats = await Chat.find({ groupChat: false, members: req.user });
 
-    // Get all your 1-1 chats
-    const myChats = await Chat.find({ groupChat: false, members: myId });
+    const allUsersFromMyChats = myChats.flatMap((chat)=>chat.members);
+      
+    const usersExceptMeAndFriends = await User.find({
+      _id: { $nin: allUsersFromMyChats },
+         name: { $regex: name, $options: "i" } 
+  
+    });
 
-    // Extract all other members (excluding yourself)
-    const allUsersFromMyChats = myChats
-      .map((chat) => chat.members.find((member) => member.toString() !== myId.toString()))
-      .filter(Boolean); // removes any undefined
-
-    // Convert to ObjectId if needed
-    const excludedIds = allUsersFromMyChats.map((id) => new mongoose.Types.ObjectId(id));
-
-    // Search for users not already in your chats, and not yourself
-    const users = await User.find({
-      _id: { $nin: [...excludedIds, myId] },
-      name: { $regex: name, $options: "i" }, // case-insensitive name search
-    }).select("name avatar"); // return only relevant fields
+    const users = usersExceptMeAndFriends.map(({_id, name , avatar})=>({
+      _id,
+      name,
+     avatar: avatar.url,
+    }));
 
     res.status(200).json({
       success: true,
