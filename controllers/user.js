@@ -1,22 +1,110 @@
-import { json } from "express";
-import {User} from "../models/user.js";
+import { User } from "../models/user.js";
+import { sendToken } from "../utils/features.js";
+import { compare } from "bcrypt";
+import { cookieOption } from "../utils/features.js";
+import {Chat} from "../models/chat.js";
 
-const newUser= async (req,res) => {
+const newUser = async (req, res) => {
+  try {
+    const { name, username, password, bio } = req.body;
 
-    const avatar={
-        public_id:"sgggrg",
+    if (!name || !username || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    const avatar = {
+      public_id: "sgggrg",
+      url: "abcde",
     };
-    await User.create({
-        name:"Aman",
-        username:"aman",
-        password:"1234",
-        avatar,
+
+    const user = await User.create({
+      name,
+      bio,
+      username,
+      password,
+      avatar,
     });
-    res.status(201),json({message:"User Created Successfully"})
+
+    sendToken(res, user, 201, "User Created");
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
 };
 
-const login=(req,res)=>{
-    res.send("hello world")
+const login = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ message: "Please provide username and password" });
+    }
+
+    const user = await User.findOne({ username }).select("+password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const isMatch = await compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ message: "Invalid password" });
+
+    sendToken(res, user, 200, `Welcome back ${user.username}`);
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
 };
 
-export {login,newUser};
+const getMyProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json({ success: true, user });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+const logout = async (req, res) => {
+    try {
+        res
+            .status(200)
+            .cookie("chat-token", "", { ...cookieOption, maxAge: 0 })
+            .json({ success: true, message: "Logged out successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+};
+
+const searchUser = async (req, res, next) => {
+  try {
+    const { name = "" } = req.query;
+    const myId = req.user;
+
+    // Get all your 1-1 chats
+    const myChats = await Chat.find({ groupChat: false, members: myId });
+
+    // Extract all other members (excluding yourself)
+    const allUsersFromMyChats = myChats
+      .map((chat) => chat.members.find((member) => member.toString() !== myId.toString()))
+      .filter(Boolean); // removes any undefined
+
+    // Convert to ObjectId if needed
+    const excludedIds = allUsersFromMyChats.map((id) => new mongoose.Types.ObjectId(id));
+
+    // Search for users not already in your chats, and not yourself
+    const users = await User.find({
+      _id: { $nin: [...excludedIds, myId] },
+      name: { $regex: name, $options: "i" }, // case-insensitive name search
+    }).select("name avatar"); // return only relevant fields
+
+    res.status(200).json({
+      success: true,
+      users,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+
+
+
+export { login, newUser, getMyProfile, logout ,searchUser};
