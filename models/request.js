@@ -1,4 +1,4 @@
-import mongoose, { Schema,model } from "mongoose";
+import mongoose, { Schema,model,Types } from "mongoose";
 
 const schema=new Schema({
     
@@ -15,7 +15,7 @@ const schema=new Schema({
             ref :"User",
             required:true,
         },
-        reciever:{
+        receiver:{
             type:Types.ObjectId,
             ref :"User",
             required:true,

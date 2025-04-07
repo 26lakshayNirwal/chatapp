@@ -245,15 +245,19 @@ const sendAttachments = async (req, res, next) => {
     try {
         const { chatId } = req.body;
         
+        const files = req.files || [];
+
+        if(files.length<1)
+            return next(new Error("Please Upload Attachments", 400));
+
+        if(files.length > 5)
+            return next(new Error("Files can't be more than 5", 400));
 
         const [chat,me] = await Promise.all([
             Chat.findById(chatId),
             User.findById(req.user,"name"),
         ]);
         if (!chat) return next(new Error("Chat not found"));
-        
-
-        const files = req.files || []; 
 
         if ( files.length <1) {
             return next(new Error(" Attachments are required"));

@@ -1,5 +1,5 @@
 import express from "express";
-import { getMyProfile, logout, searchUser } from "../controllers/user.js";
+import {  getMyProfile, logout, searchUser } from "../controllers/user.js";
 import { isAuthenticated } from "../middlewares/Auth.js";
 import { addMembers, deleteChat, getChatDetails, getMessages, getMyChats, getMyGroups, leaveGroup, newGroupChat, removeMembers, renameGroup, sendAttachments } from "../controllers/chat.js";
 import { attachmentMulter } from "../middlewares/multer.js";
@@ -25,6 +25,7 @@ app.post("/message",attachmentMulter,sendAttachmentsValidator(),validateHandler,
 app.get("/message/:id",getMessagesValidator(),validateHandler, getMessages);
 
 app.route("/:id").get(getMessagesValidator(),validateHandler, getChatDetails).put(renameValidator(),validateHandler, renameGroup).delete(getMessagesValidator(),validateHandler ,deleteChat);
+
 
 
 
