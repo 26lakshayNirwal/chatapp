@@ -7,35 +7,46 @@ import {Request} from '../models/request.js';
 import { NEW_REQUEST, REFETCH_CHATS } from "../constants/events.js";
 import { emitEvent } from "../utils/features.js";
 import { getOtherMember } from "../lib/helper.js";
+import bcrypt from "bcrypt";
 
 const newUser = async (req, res) => {
   try {
     const { name, username, password, bio } = req.body;
+    const file = req.file;
+   // console.log("File size in bytes:", file.size);
 
-    if (!name || !username || !password) {
+   // console.log("BODY:", req.body);
+   // console.log("FILE:", file);
+
+    if (!name || !username || !password || !bio || !file) {
       return res.status(400).json({ message: "All fields are required" });
     }
-    const file = req.file;
 
-    if(!file) return next(new Error("Please upload avatar"))
-
-      const result = await uploadFilesToCloudinary([file])
-
+    const result = await uploadFilesToCloudinary([file]);
     const avatar = {
-      public_id: result[0].public_id,
-      url: result[0].secureUrl,
+      public_id: result?.[0]?.public_id,
+      url: result?.[0]?.secureUrl,
     };
+    console.log("Raw password during signup:", password);
 
+   // password.trim();
+   // const hashedPassword = await bcrypt.hash(password, 10);
+    
+//console.log("Hashed password:", hashedPassword);
     const user = await User.create({
       name,
-      bio,
       username,
       password,
+      bio,
       avatar,
     });
+    
 
+
+    console.log("NEW USER:", user);
     sendToken(res, user, 201, "User Created");
   } catch (error) {
+    console.error("ERROR in newUser:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -43,7 +54,7 @@ const newUser = async (req, res) => {
 const login = async (req, res) => { 
   try {
     const { username, password } = req.body;
-
+    //password.trim();
     if (!username || !password) {
       return res.status(400).json({ message: "Please provide username and password" });
     }
@@ -52,8 +63,11 @@ const login = async (req, res) => {
     if (!user) {
       return res.status(400).json({ message: "Invalid username or password" }); 
     }
+   
+
 
     const isMatch = await compare(password, user.password);
+    
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid username or password" });
     }
@@ -198,8 +212,7 @@ const getAllNotifications = async (req, res, next) => {
 
     const allRequests = requests.map(({ _id, sender }) => ({
       _id,
-      name: sender.name,
-      avatar: sender.avatar,
+      sender,
     }));  
       
 
@@ -257,6 +270,8 @@ const getMyFriends = async (req, res) => {
      next(error)
   }
 }
+
+
 
 
 

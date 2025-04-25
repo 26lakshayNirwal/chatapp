@@ -22,6 +22,8 @@ app.put("/accept-request", isAuthenticated, acceptRequestValidator(), validateHa
 app.get("/notifications",isAuthenticated,getAllNotifications);
 
 app.get("/friends",isAuthenticated,getMyFriends);
+
+
     
 
 

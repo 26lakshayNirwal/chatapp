@@ -2,7 +2,7 @@ import { ALERT, NEW_ATTACHMENTS, NEW_MESSAGE, REFETCH_CHATS } from "../constants
 import { getOtherMember } from "../lib/helper.js";
 import { Chat } from "../models/chat.js";
 import { User } from "../models/user.js";
-import { deleteFilesFromCloudnary, emitEvent } from "../utils/features.js";
+import { deleteFilesFromCloudnary, emitEvent, uploadFilesToCloudinary } from "../utils/features.js";
 import mongoose from "mongoose";
 import {Message} from "../models/message.js";
 
@@ -263,7 +263,7 @@ const sendAttachments = async (req, res, next) => {
             return next(new Error(" Attachments are required"));
         }
 
-        const attachments = [];
+        const attachments = await uploadFilesToCloudinary(files);
 
        
 
@@ -423,33 +423,46 @@ try {
 
 const getMessages = async (req, res, next) => {
     try {
-        const { chatId } = req.params.id;
+        const chatId = req.params.id;
+        const { page = 1 } = req.query;
 
-        const {page=1} = req.query;
+        const limits = 20;
+        const skip = (page - 1) * limits;
 
-        const limits =20;
-        const skip = (page-1)*limits;
+        const chatObjectId = new mongoose.Types.ObjectId(chatId);
 
-        const [messages,totalMessagesCount] = await Promise.all([
-            Message.find({ chat: chatId })
-            .sort({createdAt : -1})
-            .skip(skip)
-            .limit(limits)
-            .populate("sender", "name")
-            .lean(),Message.countDocuments({chat : chatId}),
+        const [messages, totalMessagesCount] = await Promise.all([
+            Message.find({ chat: chatObjectId })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limits)
+                .populate("sender", "name")
+                .lean(),
+            Message.countDocuments({ chat: chatObjectId }),
         ]);
 
-        const totalPages = Math.ceil(totalMessagesCount/limits)|| 0;
+        const totalPages = Math.ceil(totalMessagesCount / limits) || 0;
 
         return res.status(200).json({
             success: true,
-            messages : messages.reverse(),
+            messages: messages.reverse(),
             totalPages,
         });
     } catch (error) {
         next(error);
     }
 };
+
+const deleteAllChats = async () => {
+    try {
+      await Chat.deleteMany({});
+      console.log("All chats deleted");
+      process.exit();
+    } catch (err) {
+      console.error(err);
+      process.exit(1);
+    }
+  };
 
 export { 
     newGroupChat ,
@@ -463,4 +476,5 @@ export {
      renameGroup,
      deleteChat,
      getMessages,
+     deleteAllChats
     };

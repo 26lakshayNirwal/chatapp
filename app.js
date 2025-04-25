@@ -1,24 +1,22 @@
-import express from "express";
-import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
+import dotenv from "dotenv";
+import express from "express";
+import { createServer } from "http";
 import { Server } from "socket.io";
-import {createServer} from "http";
-import { v4 as uuid} from "uuid";
- 
-import { connectDB } from "./utils/features.js";
+import { v4 as uuid } from "uuid";
 import { errorMiddleware } from "./middlewares/error.js";
-
-import userRoute from './routes/user.js';
-import chatRoute from './routes/chat.js';
+import { connectDB } from "./utils/features.js";
 import adminRoute from './routes/admins.js';
-
-import { createUser } from "./seeders/user.js";
-import { createGroupChats, createMessagesInAChat, createSingleChats } from "./seeders/chats.js";
+import chatRoute from './routes/chat.js';
+import userRoute from './routes/user.js';
+import { v2 as cloudinary } from 'cloudinary';
+import cors from 'cors';
+import { corsOptions } from "./constants/config.js";
 import { NEW_MESSAGE, NEW_MESSAGE_ALERT } from "./constants/events.js";
 import { getSockets } from "./lib/helper.js";
 import { Message } from "./models/message.js";
-import cors from 'cors';
-import { v2 as cloudinary} from 'cloudinary';
+import { socketAuthenticator } from "./middlewares/Auth.js";
+
 
 dotenv.config({ path: "./.env" });
 
@@ -30,7 +28,9 @@ cloudinary.config({
 
 const app = express();
 const server = createServer(app);
-const io = new Server(server,{});
+const io = new Server(server,{
+  cors:corsOptions,
+});
 
 
 const port = process.env.PORT || 3000;
@@ -41,11 +41,7 @@ const mongoURI = process.env.MONGO_URI;
 
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors({
-  origin : ["http://localhost:5173","http://localhost:4173",process.env.CLIENT_URL],
-  credentials : true,
-}
-));
+app.use(cors(corsOptions));
 
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/chat", chatRoute);
@@ -55,15 +51,20 @@ app.get("/", (req, res) => {
   res.send("hello world");
 });
 
+io.use((socket, next) => {
+  cookieParser()(
+    socket.request,
+    socket.request.res,
+    async (err) => await socketAuthenticator(err, socket, next)
+  );
+});
+
+
 io.on("connection",(socket)=>{
-    
-   const user = {
-    _id :"xyz",
-    name : "zyxw"
-   };
+   const user = socket.user;
    userSocketIDs.set(user._id.toString(), socket.id);
 
-   console.log(" user connected", socket.id);
+   console.log(userSocketIDs);
 
    socket.on(NEW_MESSAGE_ALERT,async ({chatId,members,message})=>{
 
@@ -83,6 +84,8 @@ io.on("connection",(socket)=>{
         sender : user._id,
         chat : chatId
     };
+
+  
 
     const userSocket = getSockets(members);
     io.to(userSocket).emit(NEW_MESSAGE_ALERT,{
@@ -123,8 +126,13 @@ connectDB(mongoURI)
       server.listen(port, () => {
         console.log(`🚀 Server is running on port ${port} in ${envMode} Mode`);
       });
+     // deleteAllChats()
     
   })
   .catch((err) => {
     console.error("❌ Failed to connect to MongoDB:", err.message);
   });
+
+  
+
+  
